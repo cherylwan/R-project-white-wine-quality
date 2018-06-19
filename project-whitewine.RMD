@@ -1,0 +1,383 @@
+探索影响白葡萄酒质量的化学成分
+========================================================
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE, echo = FALSE)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+# 加载你最终使用的所有组件
+# 在这个代码块的分析中。
+
+# 注意，在这个代码块中，将参数 "echo" 设为假。
+# This prevents the code from displaying in the knitted HTML output.这可以避免代码混入 HTML 输出显示。
+# 应当在文件中，对所有代码块设为 echo=FALSE 。
+
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(GGally)
+library(gridExtra)
+library(RColorBrewer)
+library(memisc)
+```
+
+```{r echo=FALSE, Load_the_Data}
+# 加载数据
+wine <- read.csv('wineQualityWhites.csv')
+head(wine)
+```
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+# 探索数据集结构
+str(wine)
+table(wine$quality)
+summary(wine)
+```
+
+# 单变量绘图选择
+```{r echo=FALSE, Univariate_Plots}
+qplot(x=quality, data=wine)
+```
+  
+  从quality的histogram可以看出虽然quality的评分范围是0-10分，但数据集中的评级分布于3-9分，其中得到6分的最多（2000多支白葡萄酒）。
+
+下面检查重复值：
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+samp <- wine[ , 2:13]
+count(wine[duplicated(samp),])
+wine_clean <- wine[!duplicated(samp),]
+summary(wine_clean)
+
+```
+  
+  该数据集共有937行重复数据，因为相同的指标对应得出了相同的评级，在考虑哪些因数会影响葡萄酒评分时，我们不需要重复的数据行。我们把删除重复行的新数据集命名为wine_clean.
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+qplot(x=alcohol, data=wine_clean, binwidth=0.2)+scale_x_continuous(breaks=seq(8,15,0.5))
+```
+  
+  酒精含量呈现右偏态分布，可见大部分白葡萄酒的酒精浓度较低，中值在10.4度。
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+p1<- qplot(x=fixed.acidity, data=wine_clean)
+p2<- qplot(x=volatile.acidity, data=wine_clean)
+p3<- qplot(x=citric.acid, data=wine_clean)
+
+grid.arrange(p1,p2,p3,nrow=3)
+```
+  
+  由横坐标可以看出白葡萄酒中以非挥发性酸(fixed acidity)为主，中值为6.8g/dm^3。
+挥发性酸（volatile acidity）呈现右偏态，中值为0.26g/dm^3，该指标若太高会有不好的醋味。
+柠檬酸（citric acid）则可以增加清新果香，其中值为0.32g/dm^3。
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+qplot(x=residual.sugar, data=wine_clean)+scale_x_continuous(limits = c(0,25))
+```
+  
+  残糖量可见明显的右偏。其中在summary中的最大值为65.8，可能为outlier。根据数据字典，残糖量>45可以视为甜白葡萄酒，下面检查残糖>45的数据：
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+wine_clean %>% filter(residual.sugar>45)
+```
+ 因其他值未见明显异常，故保留该数据。残糖量的中值为4.7g/dm^3.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+p1<- qplot(x=chlorides, data=wine_clean)
+p2<- qplot(x=free.sulfur.dioxide, data=wine_clean)
+p3<- qplot(x=total.sulfur.dioxide, data=wine_clean)
+p4<- qplot(x=density, data=wine_clean)
+p5<- qplot(x=pH, data=wine_clean)
+p6<- qplot(x=sulphates, data=wine_clean)
+grid.arrange(p2,p3,p6,nrow=3)
+```
+
+ 检查free sulfur dioxide的异常值
+````{r echo=FALSE, message=FALSE, warning=FALSE}
+wine_clean %>% filter(free.sulfur.dioxide>200)
+```
+ 因total sulfur dioxide > free sulfur dioxide, 且评分为3分，符合数据字典中对free SO2过高对酒口感的不利影响的说明，故不对该数据做其他处理。
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+grid.arrange(p1,p4,p5,nrow=3)
+```
+   
+   最后，硫酸盐chlorides中也发现部分值偏大，下面转换坐标轴为log10形式：
+````{r echo=FALSE,message=FALSE, warning=FALSE}
+
+qplot(x=chlorides, data=wine_clean)+scale_x_log10()
+```
+
+# 单变量分析
+
+### 你的数据集结构是什么？
+该数据集包含4898支白葡萄酒样本，每个样本有13个特征(包含序号列X)。
+
+### 你的数据集内感兴趣的主要特性有哪些？
+主要考虑各项指标与quality之间的关系。
+
+### 你认为数据集内哪些其他特征可以帮助你探索兴趣特点？
+影响气味和口感的因素，比如volatile acidity, citric acid, residual sugar, free sulfur dioxide, sulphates, alcohol.
+
+### 根据数据集内已有变量，你是否创建了任何新变量？
+未创建新变量。
+
+### 在已经探究的特性中，是否存在任何异常分布？你是否对数据进行一些操作，如清洁、调整或改变数据的形式？如果是，你为什么会这样做？
+在free sulfur dioxide, residual sugar,chlorides中存在异常值，其中前两项未作处理，最后一项转化为对数形式进行了查看。同时发现该数据集中有900多行重复的数据，对重复行进行了删除操作。
+
+
+# 双变量绘图选择
+
+
+```{r echo=FALSE, fig.width = 15, fig.height = 15}
+samp1 <- wine_clean[ , 2:13]
+ggpairs(samp1,
+        lower = list(
+    continuous = "smooth",
+    combo = "facetdensity",
+    mapping = aes(color = quality)), 
+        upper = list(
+        continuous = wrap("cor", size = 3)))
+
+```
+  
+  查看ggpair来观察各个变量之间的关系，发现:
+- density和alcohol的相关系数为-0.78，density和residual.sugar的相关系数为0.839。density的定义中指出the density of water is close to that of water depending on the percent alcohol and sugar content。因此density与这两个指标的强相关性是可以理解的。  
+
+- free.sulfur.dioxide与total.sulfur.dioxide的相关系数为0.616.因游离二氧化硫是总二氧化硫的一部分，故其相关性可以理解。  
+
+
+```{r echo=FALSE}
+ggplot(aes(y=alcohol, x=factor(quality)),data=wine_clean)+
+  geom_jitter(alpha=1/4)+
+  geom_boxplot(alpha=1/2)
+```
+  
+  评分高的白葡萄酒大部分酒精浓度也会较高。
+
+```{r echo=FALSE}
+ggplot(aes(y=density, x=factor(quality)),data=wine_clean)+
+  geom_jitter(alpha=1/4)+
+  geom_boxplot(alpha=1/2)+
+  coord_cartesian(ylim = c(0.985, 1.015))
+```
+  
+  评级越高的酒的density总体越低。
+
+```{r echo=FALSE}
+ggplot(aes(y=density, x=alcohol),data=wine_clean)+
+  geom_jitter(alpha=1/4)+geom_smooth(method='lm')+facet_wrap(~quality)+
+  ylim(quantile(wine_clean$density,0.05),quantile(wine_clean$density,0.95))
+```
+  
+  酒精浓度高的酒，density越低，该特点对于任何评级都一致。由常识我们知道酒精的密度低于水，因此酒精浓度高-->density低-->quality高，这三者是相对应的。
+
+```{r echo=FALSE}
+ggplot(aes(y=citric.acid, x=factor(quality)),data=wine_clean)+
+  geom_jitter(alpha=1/4)+geom_boxplot(alpha=0.5)+
+  ylim(0, quantile(wine_clean$citric.acid,0.95))
+```
+  
+  虽然citric acid可以给酒增加freshness，但对评级的影响不大。总体来看，得到最高分9分的酒的citric acid中位数高于其他评分的酒。
+
+```{r echo=FALSE}
+ggplot(aes(y=volatile.acidity, x=factor(quality)),data=wine_clean)+
+  geom_jitter(alpha=1/4)+geom_boxplot(alpha=1/2)+
+  ylim(0,0.9)
+```
+  
+  评级更高的酒的挥发性酸volatile acidity浓度略低于评级低的酒,但整体趋势不明显。
+
+```{r echo=FALSE}
+ggplot(wine_clean, aes(y = residual.sugar, x = factor(quality))) +
+  ylim(0, quantile(wine_clean$residual.sugar, 0.95)) +
+  geom_jitter(alpha = 0.15)+geom_boxplot(alpha=.05)
+```
+  
+  从boxplot来看各个评级的酒的残糖量分布没有明显趋势，从图中仅能看出评级最高的酒的残糖量是较低的。
+
+
+```{r echo=FALSE}
+ggplot(aes(y=chlorides, x=factor(quality)),data=wine_clean)+
+  geom_jitter(alpha=1/4)+geom_boxplot(alpha=0.5)+
+  ylim(0,quantile(wine_clean$chlorides,0.95))
+```
+   
+   chlorides（盐分）低的酒评级越更高。
+
+```{r echo=FALSE}
+ggplot(aes(y=total.sulfur.dioxide, x=factor(quality)),data=wine_clean)+
+  geom_jitter(alpha=1/4)+geom_boxplot(alpha=0.5)+
+  ylim(0,quantile(wine_clean$total.sulfur.dioxide,0.95))
+```
+  
+  对于得到5分以上的酒来说，总二氧化硫含量低的酒的评级更高。
+
+```{r echo=FALSE}
+ggplot(aes(y=sulphates, x=factor(quality)),data=wine_clean)+
+  geom_jitter(alpha=1/4)+geom_boxplot(alpha=0.5)
+```
+  
+  sulphates硫酸盐对quality的影响不明显。
+
+```{r echo=FALSE}
+wine_clean$acid <- wine_clean$fixed.acidity+wine_clean$volatile.acidity+wine_clean$citric.acid
+
+ggplot(aes(y=acid, x=factor(quality)),data=wine_clean)+
+  geom_jitter(alpha=1/4)+geom_boxplot(alpha=0.5)+
+  ylim(quantile(wine_clean$acid, 0.05),quantile(wine_clean$acid, 0.95))
+```
+  
+  出于好奇，我把所有的酸加总为一列acid，再比较酸度对quality的影响，但没有看到很强的相关性。可能由于volatile acidity和citric acid的含量均很小，与fixed acidity不在一个数量级。
+
+  
+  最后，验证PH值越低，酸度越高的常识。
+```{r echo=FALSE}
+ggplot(aes(y=acid, x=pH),data=wine_clean)+
+  geom_jitter(alpha=1/4)+geom_smooth(method='lm')+
+  ylim(quantile(wine_clean$acid, 0.05),quantile(wine_clean$acid, 0.95))
+```
+
+
+# 双变量分析
+
+### 探讨你在这部分探究中观察到的一些关系。这些感兴趣的特性与数据集内其他特性有什么区别？
+主要发现了volatile acidity、chlorides、total sulfur dioxide、density与quality呈负相关，alcohol和citric acid与quality呈正相关。
+以上这些特征对quality的影响比数据集内其他特征对quality的影响更加显著。
+
+### 你是否观察到主要特性与其他特性之间的有趣关系？
+density与alcohol呈负相关，与residual sugar呈正相关。
+acid酸度水平越高，PH值越低。
+residual sugar对quality的影响不如alcohol显著，这一点有些让人意外。
+
+### 你发现最强的关系是什么？
+alcohol与quality的正相关性。
+
+
+
+# 多变量绘图选择
+
+```{r echo=FALSE, Multivariate_Plots}
+ggplot(aes(x = alcohol, y= density, color=factor(quality)), data = wine_clean) + 
+  geom_point(alpha = 0.5, size = 1.5, position = 'jitter')+
+  scale_color_brewer(palette = "Reds") +
+geom_smooth(method = "lm", se = FALSE,size=1) +
+  ylim(0.985,1.005)
+
+```
+  
+  酒精浓度高的酒评级更高，density更低。
+
+```{r echo=FALSE}
+ggplot(aes(y= total.sulfur.dioxide, x= alcohol, color=factor(quality)), data = wine_clean) + 
+  geom_point(alpha =0.5, size = 1.5, position = 'jitter')+
+  scale_color_brewer(type='div',guide = guide_legend(title = 'Quality'),palette = "Reds")+
+  geom_smooth(method = "lm", se = FALSE,size=1) 
+```
+  
+  总二氧化硫对quality的影响也不如酒精明显。
+
+```{r echo=FALSE}
+ggplot( aes(x = alcohol, y = density, color = residual.sugar), data=subset(wine_clean, residual.sugar<quantile(wine_clean$residual.sugar,0.95))) +
+  geom_point(alpha =0.5, size = 1, position = 'jitter')+
+  ylim(quantile(wine_clean$density,0.05), quantile(wine_clean$density,0.95))+
+  scale_color_gradient(low='red', high='blue')
+
+```
+  
+  该图可以明确的展现density, alcohol, residual sugar三者的关系： density越大，alcohol越低，residual sugar越高。
+
+```{r echo=FALSE}
+ggplot(aes(y= alcohol, x= chlorides, color=factor(quality)), data = wine_clean) + 
+  geom_point(alpha =1, size = 1.5, position = 'jitter')+
+  scale_color_brewer(type='div',guide = guide_legend(title = 'Quality'),palette = "Reds")+
+  geom_smooth(method = "lm", se = FALSE,size=1) +
+  xlim(0, quantile(wine_clean$chlorides,0.95))
+
+```
+  
+  该图可见，chlorides越小，alcohol越大，评级越高。
+
+创建模型：
+```{r}
+
+m1 <- lm(quality ~ alcohol, data = wine_clean)
+m2 <- update(m1, ~ . + volatile.acidity)
+m3 <- update(m2, ~ . + residual.sugar)
+m4 <- update(m3, ~ . + sulphates)
+m5 <- update(m4, ~ . + total.sulfur.dioxide)
+mtable(m1, m2, m3, m4, m5)
+```
+
+
+# 多变量分析
+
+###  探讨你在这部分探究中观察到的一些关系。通过观察感兴趣的特性，是否存在相互促进的特性？
+探索发现大部分指标与alcohol相比，对quality的影响都不够大。其中，alcohol越高，chlorides越小，评级越高。  
+
+### 这些特性之间是否存在有趣或惊人的联系呢？
+最明显的关联是density, alcohol, residual sugar三者的强相关性： density越大，alcohol越低，residual sugar越高。  
+  
+### 选项：你是否创建过数据集的任何模型？讨论你模型的优缺点。
+把quality作为一个numeric value建立了线性模型。但R-squared仅有0.274，故拟合度不佳。  
+
+------
+
+# 定稿图与总结
+
+### 绘图一
+```{r echo=FALSE, Plot_One}
+
+qplot(x=alcohol, data=wine_clean, binwidth=0.1)+scale_x_continuous(breaks=seq(8,15,0.5))+
+  geom_vline(xintercept=median(wine_clean$alcohol), color='orange')+
+  xlab("Alcohol level (%)")+
+  ylab("Wine count")+
+  ggtitle("Distribution of alcohol level")
+
+```
+
+### 描述一
+数据集中的样本酒精含量alcohol整体呈右偏态，说明酒精度高的酒在样本中的占比较少。
+
+### 绘图二
+```{r echo=FALSE, Plot_Two}
+ggplot(aes(y=alcohol, x=quality, color=residual.sugar),
+       data=subset(wine_clean, residual.sugar<20))+
+  geom_jitter(alpha=1/4)+geom_smooth(method='lm')+
+  scale_colour_gradientn(colours = terrain.colors(10))+
+  scale_x_continuous(breaks=c(3:9))+
+  xlab("Quality")+
+  ylab("Alcohol level (%)")+
+  ggtitle("Quality vs alcohol level")
+```
+
+### 描述二
+随着酒精浓度的增加，质量等级quality也相应的提高。同时resudial sugar大的酒主要聚集在图片底部，说明残糖量高的白葡萄酒通常酒精含量比较低。
+
+### 绘图三
+```{r echo=FALSE, Plot_Three}
+ggplot(aes(y= total.sulfur.dioxide, x= chlorides, color=factor(quality)), data = wine_clean) + 
+  geom_point(alpha =1, size = 1, position = 'jitter')+
+  scale_color_brewer(type='div',guide = guide_legend(title = 'Quality'),palette = "Reds")+
+  geom_smooth(method = "lm", se = FALSE,size=1) +
+  scale_y_continuous(limits = c(0,300))+
+  xlim(0, quantile(wine_clean$chlorides,0.95))+
+  ylab("total sulfur dioxide - mg / dm^3")+
+  xlab(" chlorides (sodium chloride) - g / dm^3")+
+  ggtitle("Quality by total sulfur dioxide and chlorides")
+```
+
+### 描述三
+chlorides氯化物含量越低，total sulfur dioxide含量越低，白葡萄酒的质量越高。  
+
+------
+
+# 反思
+- 在前面的分析中发现酒精度高的酒的评级更高，但由绘图1发现酒精度高的酒在样本中的占比较少。那么超过14.5度的酒会得到怎样的评分？以及满分10分的酒会有怎样的特征？这两个问题由于样本容量不足，无法得到解答。  
+- 同时，为数据集创建的模型也没有得到很好的结果。一个原因是样本量不够均衡，我们仅有少量得分3-4分和8-9分的葡萄酒样本，同时缺少得分1-2分以及满分10分的样本。另一个原因是，除去酒精含量与评级表现出比较明显的相关性，其他指标与评级的相关性都较弱。  
+- 另外，在数据集中最有趣的关系是density, alcohol, 以及residual sugar之间的关系。我们发现density高的酒的酒精含量会比较低，残糖量比较高，意味着酒比较甜而不烈。但另一方面，酒精含量高、density低的酒的评级更高，说明在wine experts看来，清淡的甜白葡萄酒并不能称之为好酒。
+
+### 下一步分析计划：  
+
+- 考虑到现有数据集是基于2009年的Portuguese "Vinho Verde" ，我们还可以获取更全面、更新的酒类评分样本，比如从知名的葡萄酒评分网站wine spectator获取数据。  
+- 由于目前的13个variables并不能得出很好的评分拟合模型，我们可以考虑增加部分特征，比如葡萄酒的产区、年份等。  
+- 最后，除了白葡萄酒数据集外，我们还有一个包含1599个observation的红葡萄酒数据集，对比“决定两种葡萄酒评级的因素”也会是一项有趣的研究。  
+
